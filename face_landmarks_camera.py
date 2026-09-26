@@ -31,8 +31,6 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
-sys.stdout.reconfigure(encoding="utf-8")
-
 # ==============================================================================
 # CONFIGURATION MATRICE
 # ==============================================================================
@@ -41,6 +39,15 @@ MATRIX_H = 32          # 32 lignes
 LED_RENDER_SIZE = 16   # 512 pixels à l'écran
 SERIAL_PORT = "COM5"   # Port USB virtuel de la Nucleo; mettre None pour desactiver
 SERIAL_BAUDRATE = 115200
+
+# Zones mortes autour de la dernière mesure acceptée (0 désactive le filtre).
+# Augmenter ces valeurs réduit les tremblements, mais demande plus de mouvement.
+# Les distances sont exprimées en LEDs logiques, pas en pixels de la caméra.
+DEADZONE_PUPIL = 0.30
+DEADZONE_EYE_OPEN = 0.08  # Fraction de l'ouverture des paupières (0 à 1).
+DEADZONE_MOUTH_OPEN = 0.45
+DEADZONE_MOUTH_WIDTH = 0.50
+DEADZONE_SMILE = 0.20
 
 MODEL_PATH = os.path.join(SCRIPT_DIR, "face_landmarker.task")
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
@@ -70,22 +77,23 @@ ALL_POINTS = [
 # ==============================================================================
 # CHARGEMENT DU DETECTEUR
 # ==============================================================================
-if not os.path.exists(MODEL_PATH):
-    print("Telechargement du modele FaceLandmarker...")
-    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    print("Modele telecharge.")
+def create_face_detector():
+    if not os.path.exists(MODEL_PATH):
+        print("Telechargement du modele FaceLandmarker...")
+        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+        print("Modele telecharge.")
 
-base_options = mp_python.BaseOptions(model_asset_path=MODEL_PATH)
-options = vision.FaceLandmarkerOptions(
-    base_options=base_options,
-    output_face_blendshapes=False,
-    output_facial_transformation_matrixes=False,
-    num_faces=1,
-    min_face_detection_confidence=0.5,
-    min_face_presence_confidence=0.5,
-    min_tracking_confidence=0.5,
-)
-detector = vision.FaceLandmarker.create_from_options(options)
+    base_options = mp_python.BaseOptions(model_asset_path=MODEL_PATH)
+    options = vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        output_face_blendshapes=False,
+        output_facial_transformation_matrixes=False,
+        num_faces=1,
+        min_face_detection_confidence=0.5,
+        min_face_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
+    return vision.FaceLandmarker.create_from_options(options)
 
 
 # ==============================================================================
@@ -102,6 +110,16 @@ class RobotFaceAnimator:
         self.mouth_open = 0.0   # Hauteur d'ouverture bouche en LEDs (0.0 à 7.0)
         self.mouth_width = 11.0 # Largeur bouche en LEDs (6.0 à 15.0)
         self.smile_curve = 0.0  # Courbure du sourire (-2.0 à +3.0)
+
+        self._stable_targets = {}
+
+    def _stabilize(self, name, value, deadzone):
+        """Conserve la cible tant que la mesure reste dans sa zone morte."""
+        # Comparer à la dernière cible acceptée, jamais à la frame précédente :
+        # un mouvement lent finit ainsi par dépasser le seuil et reste détecté.
+        if name not in self._stable_targets or abs(value - self._stable_targets[name]) > deadzone:
+            self._stable_targets[name] = value
+        return self._stable_targets[name]
 
     def update(self, landmarks, w, h):
         pts = {i: np.array([landmarks[i].x * w, landmarks[i].y * h], dtype=np.float32) for i in ALL_POINTS}
@@ -156,6 +174,9 @@ class RobotFaceAnimator:
         # 4. Paramètres continus de la bouche
         w_mouth_raw = abs(np.dot(pts[MOUTH_C2] - pts[MOUTH_C1], u_h)) / dist_eyes
         h_inner_raw = abs(np.dot(pts[MOUTH_IN_BOTTOM] - pts[MOUTH_IN_TOP], u_v)) / dist_eyes
+        # Filtrer avant le saut de 0 à 0.5 LED du seuil d'ouverture : sinon,
+        # une minuscule variation autour de 0.028 ferait clignoter la bouche.
+        h_inner_raw = self._stabilize("mouth_ratio", float(h_inner_raw), DEADZONE_MOUTH_OPEN / 32.0)
 
         # Sourire : hauteur relative commissures vs centre
         mid_corners = (pts[MOUTH_C1] + pts[MOUTH_C2]) / 2.0
@@ -164,7 +185,7 @@ class RobotFaceAnimator:
 
         # Mapping continu sur les dimensions de la matrice
         target_mouth_w = float(np.clip(w_mouth_raw * 16.0, 6.0, 15.0))
-        # Seuil doux : commence à s'ouvrir dès 0.025
+        # Commence à s'ouvrir dès 0.028, après stabilisation de la mesure.
         if h_inner_raw < 0.028:
             target_mouth_h = 0.0
         else:
@@ -172,7 +193,14 @@ class RobotFaceAnimator:
 
         target_smile = float(np.clip(smile_val * 40.0, -1.5, 3.0))
 
-        # 5. Lissage exponentiel réactif (zéro latence, 100% organique)
+        # 5. Zones mortes indépendantes, puis lissage des mouvements acceptés.
+        target_pupil_x = self._stabilize("pupil_x", target_pupil_x, DEADZONE_PUPIL)
+        target_pupil_y = self._stabilize("pupil_y", target_pupil_y, DEADZONE_PUPIL)
+        raw_open_l = self._stabilize("eye_l_open", raw_open_l, DEADZONE_EYE_OPEN)
+        raw_open_r = self._stabilize("eye_r_open", raw_open_r, DEADZONE_EYE_OPEN)
+        target_mouth_w = self._stabilize("mouth_w", target_mouth_w, DEADZONE_MOUTH_WIDTH)
+        target_smile = self._stabilize("smile", target_smile, DEADZONE_SMILE)
+
         A_PUPIL = 0.55
         A_EYE = 0.70
         A_MOUTH = 0.65
@@ -354,7 +382,9 @@ def send_face_to_stm32(serial_link, anim):
 # PROGRAMME PRINCIPAL
 # ==============================================================================
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
     print("Initialisation de l'animation faciale stylisee...")
+    detector = create_face_detector()
     serial_link = None
 
     if SERIAL_PORT:

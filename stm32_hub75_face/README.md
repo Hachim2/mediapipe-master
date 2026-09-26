@@ -76,6 +76,30 @@ py .\face_landmarks_camera.py
 
 Appuyer sur `q` pour quitter.
 
+### Regler les zones mortes
+
+Dans `face_landmarks_camera.py`, les constantes `DEADZONE_*` reglent les
+mouvements minimums qui font changer l'animation :
+
+- `DEADZONE_PUPIL = 0.30` : deplacement horizontal et vertical du regard.
+- `DEADZONE_EYE_OPEN = 0.08` : ouverture de chaque paupiere, sur une echelle de 0 a 1.
+- `DEADZONE_MOUTH_OPEN = 0.45` : ouverture de la bouche.
+- `DEADZONE_MOUTH_WIDTH = 0.50` : largeur de la bouche.
+- `DEADZONE_SMILE = 0.20` : courbure du sourire.
+
+Hors paupieres, les seuils sont exprimes en LEDs logiques 32x32. Augmenter
+un seuil stabilise davantage le visage ; le diminuer rend le mouvement plus
+sensible. Mettre un seuil a `0` desactive sa zone morte. Relancer le script
+apres modification.
+
+La reference reste la derniere mesure acceptee : les petits tremblements sont
+ignores, mais un mouvement lent et continu finit par depasser le seuil.
+Les mouvements acceptes gardent le lissage existant. La bouche est filtree
+avant son seuil d'ouverture pour eviter une alternance ferme/ouvert.
+Le regard et l'ouverture de la bouche sont aussi filtres dans les donnees
+envoyees au STM32. Les paupieres, la largeur et le sourire concernent l'apercu
+sur l'ordinateur, car le protocole actuel ne transmet pas ces parametres.
+
 Le protocole envoye est :
 
 ```text
