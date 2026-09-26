@@ -1,0 +1,58 @@
+bazel-*
+mediapipe/MediaPipe.xcodeproj
+mediapipe/MediaPipe.tulsiproj/*.tulsiconf-user
+mediapipe/provisioning_profile.mobileprovision
+node_modules/
+.configure.bazelrc
+.user.bazelrc
+
+# --- Robot face application: generated or machine-specific files ---
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Downloaded model. Keep it local; the application downloads it when absent.
+face_landmarker.task
+
+# PlatformIO build products, downloaded libraries and local VS Code state.
+stm32_hub75_face/.pio/
+stm32_hub75_face/__pycache__/
+stm32_hub75_face/.vscode/
+
+# --- Bundled MediaPipe upstream checkout ---
+# The robot application uses the installed Python package, so none of this
+# source tree or its build/CI configuration belongs in this repository.
+/mediapipe/
+/third_party/
+/docs/
+/.github/
+/.bazelrc
+/.bazelversion
+/.dockerignore
+/BUILD.bazel
+/CONTRIBUTING.md
+/Dockerfile*
+/LICENSE
+/MANIFEST.in
+/MODULE.bazel
+/MODULE.bazel.lock
+/README.md
+/WORKSPACE
+/build_android_examples.sh
+/build_desktop_examples.sh
+/build_ios_examples.sh
+/build_manylinux_wheel.sh
+/package.json
+/platform_mappings
+/pnpm-lock.yaml
+/requirements.txt
+/requirements_lock.txt
+/requirements_lock_3_10.txt
+/requirements_lock_3_11.txt
+/requirements_lock_3_12.txt
+/setup.py
+/setup_android_sdk_and_ndk.sh
+/setup_opencv.sh
+/tsconfig.json
