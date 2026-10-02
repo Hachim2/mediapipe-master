@@ -1,4 +1,4 @@
-"""Deadzone regressions without a camera, detector, network, or serial device."""
+"""Deadzone regressions without a camera, detector, or network."""
 
 import sys
 import unittest
@@ -50,14 +50,6 @@ def landmarks_for_pose(
     put(0, 300.0, lip_center_y - 10.0)
     put(17, 300.0, lip_center_y + 10.0)
     return points
-
-
-class SerialCapture:
-    def __init__(self):
-        self.messages = []
-
-    def write(self, message):
-        self.messages.append(message)
 
 
 def settle(animator, points, frames=50):
@@ -113,8 +105,8 @@ class DeadzoneFilterTests(unittest.TestCase):
 
 
 class FaceOutputTests(unittest.TestCase):
-    def test_landmark_noise_keeps_preview_and_serial_output_stable(self):
-        # 0.49 straddles preview pixel rounding; 0.249 straddles serial rounding.
+    def test_landmark_noise_keeps_preview_stable(self):
+        # Exercise two positions near pixel rounding boundaries.
         for pupil_x in (0.49, 0.249):
             with self.subTest(pupil_x=pupil_x):
                 animator = face.RobotFaceAnimator()
@@ -123,9 +115,6 @@ class FaceOutputTests(unittest.TestCase):
                     pupil_x=pupil_x, pupil_y=0.24, mouth_ratio=mouth_ratio,
                 ))
                 baseline_grid = face.render_living_robot_face(baseline)
-                serial = SerialCapture()
-                face.send_face_to_stm32(serial, baseline)
-                baseline_packet = serial.messages[-1]
 
                 for direction in (-1.0, 1.0) * 25:
                     state = animator.update(landmarks_for_pose(
@@ -139,8 +128,6 @@ class FaceOutputTests(unittest.TestCase):
                     np.testing.assert_array_equal(
                         face.render_living_robot_face(state), baseline_grid,
                     )
-                    face.send_face_to_stm32(serial, state)
-                    self.assertEqual(serial.messages[-1], baseline_packet)
 
     def test_mouth_cutoff_noise_does_not_toggle_output(self):
         for initial_ratio in (0.027, 0.029):
@@ -148,17 +135,12 @@ class FaceOutputTests(unittest.TestCase):
                 animator = face.RobotFaceAnimator()
                 baseline = settle(animator, landmarks_for_pose(mouth_ratio=initial_ratio))
                 baseline_grid = face.render_living_robot_face(baseline)
-                serial = SerialCapture()
-                face.send_face_to_stm32(serial, baseline)
-                baseline_packet = serial.messages[-1]
                 for mouth_ratio in (0.027, 0.029) * 25:
                     state = animator.update(landmarks_for_pose(mouth_ratio=mouth_ratio), 640, 480)
                     self.assertAlmostEqual(state["mouth_h"], baseline["mouth_h"])
                     np.testing.assert_array_equal(
                         face.render_living_robot_face(state), baseline_grid,
                     )
-                    face.send_face_to_stm32(serial, state)
-                    self.assertEqual(serial.messages[-1], baseline_packet)
 
     def test_deliberate_mouth_opening_and_closure_still_reach_output(self):
         animator = face.RobotFaceAnimator()
@@ -170,17 +152,10 @@ class FaceOutputTests(unittest.TestCase):
         self.assertFalse(np.array_equal(
             face.render_living_robot_face(opened), face.render_living_robot_face(baseline),
         ))
-        serial = SerialCapture()
-        for state in (baseline, opened, closed):
-            face.send_face_to_stm32(serial, state)
-        self.assertNotEqual(serial.messages[0], serial.messages[1])
-        self.assertEqual(serial.messages[0], serial.messages[2])
 
     def test_slow_gaze_motion_crosses_deadzone_and_changes_leds(self):
         animator = face.RobotFaceAnimator()
         baseline = settle(animator, landmarks_for_pose())
-        serial = SerialCapture()
-        face.send_face_to_stm32(serial, baseline)
         for pupil_x in (0.1, 0.2, 0.29):
             state = settle(animator, landmarks_for_pose(pupil_x=pupil_x))
             self.assertAlmostEqual(state["pupil_x"], baseline["pupil_x"])
@@ -191,8 +166,6 @@ class FaceOutputTests(unittest.TestCase):
         self.assertFalse(np.array_equal(
             face.render_living_robot_face(moved), face.render_living_robot_face(baseline),
         ))
-        face.send_face_to_stm32(serial, moved)
-        self.assertNotEqual(serial.messages[0], serial.messages[1])
 
 
 if __name__ == "__main__":

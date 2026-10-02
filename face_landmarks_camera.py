@@ -26,7 +26,6 @@ sys.path = [
 import cv2
 import numpy as np
 import urllib.request
-import serial
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
@@ -37,8 +36,6 @@ from mediapipe.tasks.python import vision
 MATRIX_W = 32          # 32 colonnes
 MATRIX_H = 32          # 32 lignes
 LED_RENDER_SIZE = 16   # 512 pixels à l'écran
-SERIAL_PORT = "COM5"   # Port USB virtuel de la Nucleo; mettre None pour desactiver
-SERIAL_BAUDRATE = 115200
 
 # Zones mortes autour de la dernière mesure acceptée (0 désactive le filtre).
 # Augmenter ces valeurs réduit les tremblements, mais demande plus de mouvement.
@@ -357,27 +354,6 @@ def create_led_display(grid_32x32):
     return canvas
 
 
-def send_face_to_stm32(serial_link, anim):
-    """Convertit le visage 32x32 en coordonnees pour la matrice 64x64."""
-    if serial_link is None or anim is None:
-        return
-
-    left_x = int(round((8.0 + anim["pupil_x"]) * 2.0))
-    left_y = int(round((11.0 + anim["pupil_y"]) * 2.0))
-    right_x = int(round((23.0 + anim["pupil_x"]) * 2.0))
-    right_y = int(round((11.0 + anim["pupil_y"]) * 2.0))
-    mouth_opening = int(round(anim["mouth_h"] * 2.0))
-
-    values = (
-        max(0, min(63, left_x)),
-        max(0, min(63, left_y)),
-        max(0, min(63, right_x)),
-        max(0, min(63, right_y)),
-        max(0, min(24, mouth_opening)),
-    )
-    serial_link.write(f"{values[0]},{values[1]},{values[2]},{values[3]},{values[4]}\n".encode("ascii"))
-
-
 # ==============================================================================
 # PROGRAMME PRINCIPAL
 # ==============================================================================
@@ -385,21 +361,14 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     print("Initialisation de l'animation faciale stylisee...")
     detector = create_face_detector()
-    serial_link = None
-
-    if SERIAL_PORT:
-        try:
-            serial_link = serial.Serial(SERIAL_PORT, SERIAL_BAUDRATE, timeout=0)
-            print(f"Connexion STM32 ouverte sur {SERIAL_PORT}.")
-        except serial.SerialException as error:
-            print(f"AVERTISSEMENT : STM32 indisponible sur {SERIAL_PORT} : {error}")
-
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        cap = cv2.VideoCapture(0)
+    # DirectShow sous Windows, backend natif sous Linux (Raspberry Pi).
+    backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
+    cap = cv2.VideoCapture(0, backend)
 
     if not cap.isOpened():
         print("ERREUR : Impossible d'acceder a la camera.")
+        cap.release()
+        detector.close()
         return
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -407,7 +376,7 @@ def main():
 
     animator = RobotFaceAnimator()
 
-    window_title = "Matrice LED - Animation Stylisee & Vivante"
+    window_title = "Visage - Animation Stylisee & Vivante"
     cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_title, 1160, 520)
 
@@ -481,7 +450,6 @@ def main():
         # Génération du rendu stylisé vivant
         led_grid = render_living_robot_face(anim_state)
         led_display = create_led_display(led_grid)
-        send_face_to_stm32(serial_link, anim_state)
 
         # Vue combinée
         frame_resized = cv2.resize(frame, (int(w * (led_display.shape[0] / h)), led_display.shape[0]))
@@ -493,8 +461,6 @@ def main():
             break
 
     cap.release()
-    if serial_link is not None:
-        serial_link.close()
     cv2.destroyAllWindows()
     detector.close()
     print("Fermeture propre.")
