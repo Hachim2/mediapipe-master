@@ -13,7 +13,94 @@ Architecture :
 
 import sys
 import os
-import math
+from config import (
+    MATRIX_W,
+    MATRIX_H,
+    LED_RENDER_SIZE,
+    DEADZONE_PUPIL,
+    DEADZONE_EYE_OPEN,
+    DEADZONE_MOUTH_OPEN,
+    DEADZONE_MOUTH_WIDTH,
+    DEADZONE_SMILE,
+    MODEL_PATH,
+    MODEL_URL,
+    EYE_1_C1,
+    EYE_1_C2,
+    EYE_1_TOP,
+    EYE_1_BOTTOM,
+    EYE_1_IRIS,
+    EYE_2_C1,
+    EYE_2_C2,
+    EYE_2_TOP,
+    EYE_2_BOTTOM,
+    EYE_2_IRIS,
+    MOUTH_C1,
+    MOUTH_C2,
+    MOUTH_IN_TOP,
+    MOUTH_IN_BOTTOM,
+    MOUTH_OUT_TOP,
+    MOUTH_OUT_BOTTOM,
+    ALL_POINTS,
+    CAMERA_INDEX,
+    CAMERA_WIDTH,
+    CAMERA_HEIGHT,
+    CAMERA_MIRROR,
+    WINDOW_TITLE,
+    WINDOW_WIDTH,
+    WINDOW_HEIGHT,
+    NUM_FACES,
+    DETECTION_CONFIDENCE,
+    PRESENCE_CONFIDENCE,
+    TRACKING_CONFIDENCE,
+    EYE_CLOSED_RATIO,
+    EYE_OPEN_RATIO,
+    PUPIL_X_GAIN,
+    PUPIL_X_LIMIT,
+    PUPIL_Y_GAIN,
+    PUPIL_Y_LIMIT,
+    MOUTH_WIDTH_GAIN,
+    MOUTH_WIDTH_MIN,
+    MOUTH_WIDTH_MAX,
+    MOUTH_WIDTH_INITIAL,
+    MOUTH_OPEN_RATIO,
+    MOUTH_OPEN_GAIN,
+    MOUTH_OPEN_MIN,
+    MOUTH_OPEN_MAX,
+    SMILE_GAIN,
+    SMILE_MIN,
+    SMILE_MAX,
+    A_PUPIL,
+    A_EYE,
+    A_MOUTH,
+    COLOR_AMBER,
+    COLOR_PUPIL,
+    COLOR_DIM,
+    COLOR_IDLE_EYES,
+    COLOR_IDLE_MOUTH,
+    EYE_LEFT_X,
+    EYE_RIGHT_X,
+    EYE_Y,
+    EYE_HALF_WIDTH,
+    EYE_HALF_HEIGHT,
+    EYE_CLOSED_RENDER_THRESHOLD,
+    PUPIL_VISIBLE_THRESHOLD,
+    MOUTH_CENTER_X,
+    MOUTH_CENTER_Y,
+    MOUTH_HALF_WIDTH_MIN,
+    MOUTH_CLOSED_RENDER_THRESHOLD,
+    MOUTH_FILL_THRESHOLD,
+    SMILE_CORNER_GAIN,
+    SMILE_CLOSED_CENTER_GAIN,
+    SMILE_OPEN_CENTER_GAIN,
+    BEZIER_CLOSED_SAMPLES,
+    BEZIER_OPEN_SAMPLES,
+    LED_BACKGROUND,
+    LED_OFF_COLOR,
+    LED_RADIUS_PADDING,
+    LED_HALO_RADIUS,
+    LED_HALO_GAIN,
+    LED_HIGHLIGHT_GAIN,
+)
 
 # This file lives next to a MediaPipe source checkout.  Do not let that
 # unbuilt checkout shadow the installed `mediapipe` Python package.
@@ -31,47 +118,6 @@ from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
 # ==============================================================================
-# CONFIGURATION MATRICE
-# ==============================================================================
-MATRIX_W = 32          # 32 colonnes
-MATRIX_H = 32          # 32 lignes
-LED_RENDER_SIZE = 16   # 512 pixels à l'écran
-
-# Zones mortes autour de la dernière mesure acceptée (0 désactive le filtre).
-# Augmenter ces valeurs réduit les tremblements, mais demande plus de mouvement.
-# Les distances sont exprimées en LEDs logiques, pas en pixels de la caméra.
-DEADZONE_PUPIL = 0.30
-DEADZONE_EYE_OPEN = 0.08  # Fraction de l'ouverture des paupières (0 à 1).
-DEADZONE_MOUTH_OPEN = 0.45
-DEADZONE_MOUTH_WIDTH = 0.50
-DEADZONE_SMILE = 0.20
-
-MODEL_PATH = os.path.join(SCRIPT_DIR, "face_landmarker.task")
-MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-
-# ==============================================================================
-# POINTS ANATOMIQUES REQUIS (YEUX + IRIS + BOUCHE)
-# ==============================================================================
-EYE_1_C1, EYE_1_C2 = 33, 133
-EYE_1_TOP, EYE_1_BOTTOM = 159, 145
-EYE_1_IRIS = 468
-
-EYE_2_C1, EYE_2_C2 = 362, 263
-EYE_2_TOP, EYE_2_BOTTOM = 386, 374
-EYE_2_IRIS = 473
-
-MOUTH_C1, MOUTH_C2 = 61, 291
-MOUTH_IN_TOP, MOUTH_IN_BOTTOM = 13, 14
-MOUTH_OUT_TOP, MOUTH_OUT_BOTTOM = 0, 17
-
-ALL_POINTS = [
-    EYE_1_C1, EYE_1_C2, EYE_1_TOP, EYE_1_BOTTOM, EYE_1_IRIS,
-    EYE_2_C1, EYE_2_C2, EYE_2_TOP, EYE_2_BOTTOM, EYE_2_IRIS,
-    MOUTH_C1, MOUTH_C2, MOUTH_IN_TOP, MOUTH_IN_BOTTOM, MOUTH_OUT_TOP, MOUTH_OUT_BOTTOM
-]
-
-
-# ==============================================================================
 # CHARGEMENT DU DETECTEUR
 # ==============================================================================
 def create_face_detector():
@@ -85,10 +131,10 @@ def create_face_detector():
         base_options=base_options,
         output_face_blendshapes=False,
         output_facial_transformation_matrixes=False,
-        num_faces=1,
-        min_face_detection_confidence=0.5,
-        min_face_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
+        num_faces=NUM_FACES,
+        min_face_detection_confidence=DETECTION_CONFIDENCE,
+        min_face_presence_confidence=PRESENCE_CONFIDENCE,
+        min_tracking_confidence=TRACKING_CONFIDENCE,
     )
     return vision.FaceLandmarker.create_from_options(options)
 
@@ -105,7 +151,7 @@ class RobotFaceAnimator:
         self.eye_r_open = 1.0   # Ouverture œil D (0.0 fermé à 1.0 ouvert)
 
         self.mouth_open = 0.0   # Hauteur d'ouverture bouche en LEDs (0.0 à 7.0)
-        self.mouth_width = 11.0 # Largeur bouche en LEDs (6.0 à 15.0)
+        self.mouth_width = MOUTH_WIDTH_INITIAL # Largeur bouche en LEDs (6.0 à 15.0)
         self.smile_curve = 0.0  # Courbure du sourire (-2.0 à +3.0)
 
         self._stable_targets = {}
@@ -148,7 +194,7 @@ class RobotFaceAnimator:
             h_e = abs(np.dot(eye[3] - eye[2], u_v))
             ear = h_e / (w_e + 1e-5)
             # 0.14 = fermé, 0.28+ = grand ouvert
-            return float(np.clip((ear - 0.14) / (0.28 - 0.14), 0.0, 1.0))
+            return float(np.clip((ear - EYE_CLOSED_RATIO) / (EYE_OPEN_RATIO - EYE_CLOSED_RATIO), 0.0, 1.0))
 
         raw_open_l = get_openness(eye_l)
         raw_open_r = get_openness(eye_r)
@@ -165,15 +211,15 @@ class RobotFaceAnimator:
         gx_l, gy_l = get_iris_offset(eye_l)
         gx_r, gy_r = get_iris_offset(eye_r)
 
-        target_pupil_x = float(np.clip(((gx_l + gx_r) / 2.0) * 2.3, -2.2, 2.2))
-        target_pupil_y = float(np.clip(((gy_l + gy_r) / 2.0) * 1.5, -1.3, 1.3))
+        target_pupil_x = float(np.clip(((gx_l + gx_r) / 2.0) * PUPIL_X_GAIN, -PUPIL_X_LIMIT, PUPIL_X_LIMIT))
+        target_pupil_y = float(np.clip(((gy_l + gy_r) / 2.0) * PUPIL_Y_GAIN, -PUPIL_Y_LIMIT, PUPIL_Y_LIMIT))
 
         # 4. Paramètres continus de la bouche
         w_mouth_raw = abs(np.dot(pts[MOUTH_C2] - pts[MOUTH_C1], u_h)) / dist_eyes
         h_inner_raw = abs(np.dot(pts[MOUTH_IN_BOTTOM] - pts[MOUTH_IN_TOP], u_v)) / dist_eyes
         # Filtrer avant le saut de 0 à 0.5 LED du seuil d'ouverture : sinon,
         # une minuscule variation autour de 0.028 ferait clignoter la bouche.
-        h_inner_raw = self._stabilize("mouth_ratio", float(h_inner_raw), DEADZONE_MOUTH_OPEN / 32.0)
+        h_inner_raw = self._stabilize("mouth_ratio", float(h_inner_raw), DEADZONE_MOUTH_OPEN / MOUTH_OPEN_GAIN)
 
         # Sourire : hauteur relative commissures vs centre
         mid_corners = (pts[MOUTH_C1] + pts[MOUTH_C2]) / 2.0
@@ -181,14 +227,14 @@ class RobotFaceAnimator:
         smile_val = np.dot(mid_lips - mid_corners, u_v) / dist_eyes
 
         # Mapping continu sur les dimensions de la matrice
-        target_mouth_w = float(np.clip(w_mouth_raw * 16.0, 6.0, 15.0))
+        target_mouth_w = float(np.clip(w_mouth_raw * MOUTH_WIDTH_GAIN, MOUTH_WIDTH_MIN, MOUTH_WIDTH_MAX))
         # Commence à s'ouvrir dès 0.028, après stabilisation de la mesure.
-        if h_inner_raw < 0.028:
+        if h_inner_raw < MOUTH_OPEN_RATIO:
             target_mouth_h = 0.0
         else:
-            target_mouth_h = float(np.clip((h_inner_raw - 0.028) * 32.0, 0.5, 7.5))
+            target_mouth_h = float(np.clip((h_inner_raw - MOUTH_OPEN_RATIO) * MOUTH_OPEN_GAIN, MOUTH_OPEN_MIN, MOUTH_OPEN_MAX))
 
-        target_smile = float(np.clip(smile_val * 40.0, -1.5, 3.0))
+        target_smile = float(np.clip(smile_val * SMILE_GAIN, SMILE_MIN, SMILE_MAX))
 
         # 5. Zones mortes indépendantes, puis lissage des mouvements acceptés.
         target_pupil_x = self._stabilize("pupil_x", target_pupil_x, DEADZONE_PUPIL)
@@ -198,9 +244,6 @@ class RobotFaceAnimator:
         target_mouth_w = self._stabilize("mouth_w", target_mouth_w, DEADZONE_MOUTH_WIDTH)
         target_smile = self._stabilize("smile", target_smile, DEADZONE_SMILE)
 
-        A_PUPIL = 0.55
-        A_EYE = 0.70
-        A_MOUTH = 0.65
 
         self.pupil_x = A_PUPIL * target_pupil_x + (1.0 - A_PUPIL) * self.pupil_x
         self.pupil_y = A_PUPIL * target_pupil_y + (1.0 - A_PUPIL) * self.pupil_y
@@ -227,7 +270,7 @@ class RobotFaceAnimator:
         }
 
 
-def compute_quadratic_bezier(p0, p_mid, p2, num_samples=25):
+def compute_quadratic_bezier(p0, p_mid, p2, num_samples=BEZIER_CLOSED_SAMPLES):
     """
     Calcule une courbe de Bézier quadratique passant exactement par :
     - p0 à t = 0.0
@@ -247,14 +290,11 @@ def compute_quadratic_bezier(p0, p_mid, p2, num_samples=25):
 def render_living_robot_face(anim):
     grid = np.zeros((MATRIX_H, MATRIX_W, 3), dtype=np.uint8)
 
-    COLOR_AMBER = (0, 180, 255)       # Jaune-orange ambré éclatant
-    COLOR_PUPIL = (255, 255, 255)   # Blanc éclatant
-    COLOR_DIM = (0, 60, 100)        # Intérieur tamisé
 
     if anim is None:
-        grid[11, 6:12] = (50, 50, 50)
-        grid[11, 20:26] = (50, 50, 50)
-        grid[23, 11:21] = (40, 40, 40)
+        grid[11, 6:12] = COLOR_IDLE_EYES
+        grid[11, 20:26] = COLOR_IDLE_EYES
+        grid[23, 11:21] = COLOR_IDLE_MOUTH
         return grid
 
     # --------------------------------------------------------------------------
@@ -262,13 +302,13 @@ def render_living_robot_face(anim):
     # --------------------------------------------------------------------------
     def draw_eye(cx, cy, open_ratio):
         # Si complètement fermé (< 0.15) : trait horizontal net de 7 LEDs
-        if open_ratio < 0.15:
-            grid[cy, cx - 3 : cx + 4] = COLOR_AMBER
+        if open_ratio < EYE_CLOSED_RENDER_THRESHOLD:
+            grid[cy, cx - EYE_HALF_WIDTH : cx + EYE_HALF_WIDTH + 1] = COLOR_AMBER
             return
 
         # Hauteur de l'œil qui s'adapte en douceur (de 2 à 5 LEDs)
-        half_h = max(1, int(round(open_ratio * 2.5)))
-        half_w = 3
+        half_h = max(1, int(round(open_ratio * EYE_HALF_HEIGHT)))
+        half_w = EYE_HALF_WIDTH
 
         # Forme arrondie stylisée de l'orbite
         for dy in range(-half_h, half_h + 1):
@@ -277,7 +317,7 @@ def render_living_robot_face(anim):
             grid[cy + dy, cx - cur_w : cx + cur_w + 1] = COLOR_AMBER
 
         # Pupille blanche mobile (glisse continuellement)
-        if open_ratio > 0.40:
+        if open_ratio > PUPIL_VISIBLE_THRESHOLD:
             px = int(round(cx + anim["pupil_x"]))
             # Limiter le déplacement vertical selon l'ouverture
             py_limit = max(0, half_h - 1)
@@ -286,8 +326,8 @@ def render_living_robot_face(anim):
             # Pupille 2x2 lumineuse
             grid[py - 1 : py + 1, px - 1 : px + 1] = COLOR_PUPIL
 
-    draw_eye(cx=8, cy=11, open_ratio=anim["eye_l_open"])
-    draw_eye(cx=23, cy=11, open_ratio=anim["eye_r_open"])
+    draw_eye(cx=EYE_LEFT_X, cy=EYE_Y, open_ratio=anim["eye_l_open"])
+    draw_eye(cx=EYE_RIGHT_X, cy=EYE_Y, open_ratio=anim["eye_r_open"])
 
     # --------------------------------------------------------------------------
     # 2. BOUCHE : TRACÉ EN COURBES DE BÉZIER QUADRATIQUES
@@ -296,31 +336,31 @@ def render_living_robot_face(anim):
     mouth_w = anim["mouth_w"]
     smile = anim["smile"]
 
-    center_x = 15.5
-    center_y = 23.0
+    center_x = MOUTH_CENTER_X
+    center_y = MOUTH_CENTER_Y
 
-    half_w = max(3.5, mouth_w / 2.0)
-    p0 = np.array([center_x - half_w, center_y - smile * 0.7], dtype=np.float32)
-    p2 = np.array([center_x + half_w, center_y - smile * 0.7], dtype=np.float32)
+    half_w = max(MOUTH_HALF_WIDTH_MIN, mouth_w / 2.0)
+    p0 = np.array([center_x - half_w, center_y - smile * SMILE_CORNER_GAIN], dtype=np.float32)
+    p2 = np.array([center_x + half_w, center_y - smile * SMILE_CORNER_GAIN], dtype=np.float32)
 
-    if mouth_h < 0.8:
+    if mouth_h < MOUTH_CLOSED_RENDER_THRESHOLD:
         # --- BOUCHE FERMÉE : Une seule courbe de Bézier quadratique continue ---
-        p_mid = np.array([center_x, center_y + smile * 0.3], dtype=np.float32)
-        curve = compute_quadratic_bezier(p0, p_mid, p2, num_samples=25)
+        p_mid = np.array([center_x, center_y + smile * SMILE_CLOSED_CENTER_GAIN], dtype=np.float32)
+        curve = compute_quadratic_bezier(p0, p_mid, p2, num_samples=BEZIER_CLOSED_SAMPLES)
         pts_curve = np.round(curve).astype(np.int32)
         cv2.polylines(grid, [pts_curve], isClosed=False, color=COLOR_AMBER, thickness=1)
 
     else:
         # --- BOUCHE OUVERTE : Deux courbes de Bézier (Lèvre supérieure & inférieure) ---
-        p_top = np.array([center_x, center_y - mouth_h * 0.5 - smile * 0.4], dtype=np.float32)
-        p_bot = np.array([center_x, center_y + mouth_h * 0.5 - smile * 0.4], dtype=np.float32)
+        p_top = np.array([center_x, center_y - mouth_h * 0.5 - smile * SMILE_OPEN_CENTER_GAIN], dtype=np.float32)
+        p_bot = np.array([center_x, center_y + mouth_h * 0.5 - smile * SMILE_OPEN_CENTER_GAIN], dtype=np.float32)
 
-        curve_top = compute_quadratic_bezier(p0, p_top, p2, num_samples=20)
-        curve_bot = compute_quadratic_bezier(p2, p_bot, p0, num_samples=20)
+        curve_top = compute_quadratic_bezier(p0, p_top, p2, num_samples=BEZIER_OPEN_SAMPLES)
+        curve_bot = compute_quadratic_bezier(p2, p_bot, p0, num_samples=BEZIER_OPEN_SAMPLES)
         mouth_loop = np.vstack([curve_top, curve_bot])
         pts_loop = np.round(mouth_loop).astype(np.int32)
 
-        if mouth_h >= 2.5:
+        if mouth_h >= MOUTH_FILL_THRESHOLD:
             cv2.fillPoly(grid, [pts_loop], color=COLOR_DIM)
         cv2.polylines(grid, [pts_loop], isClosed=True, color=COLOR_AMBER, thickness=1)
 
@@ -333,9 +373,9 @@ def create_led_display(grid_32x32):
     """
     h = MATRIX_H * LED_RENDER_SIZE
     w = MATRIX_W * LED_RENDER_SIZE
-    canvas = np.full((h, w, 3), 10, dtype=np.uint8)
+    canvas = np.full((h, w, 3), LED_BACKGROUND, dtype=np.uint8)
 
-    radius = (LED_RENDER_SIZE // 2) - 2
+    radius = (LED_RENDER_SIZE // 2) - LED_RADIUS_PADDING
 
     for y in range(MATRIX_H):
         for x in range(MATRIX_W):
@@ -344,12 +384,12 @@ def create_led_display(grid_32x32):
                       y * LED_RENDER_SIZE + LED_RENDER_SIZE // 2)
 
             if b == 0 and g == 0 and r == 0:
-                cv2.circle(canvas, center, radius, (20, 20, 20), -1)
+                cv2.circle(canvas, center, radius, LED_OFF_COLOR, -1)
             else:
-                cv2.circle(canvas, center, radius + 3, (int(b * 0.3), int(g * 0.3), int(r * 0.3)), -1)
+                cv2.circle(canvas, center, radius + LED_HALO_RADIUS, (int(b * LED_HALO_GAIN), int(g * LED_HALO_GAIN), int(r * LED_HALO_GAIN)), -1)
                 cv2.circle(canvas, center, radius, (int(b), int(g), int(r)), -1)
                 cv2.circle(canvas, center, max(1, radius // 3),
-                           (min(255, int(b * 1.4)), min(255, int(g * 1.4)), min(255, int(r * 1.4))), -1)
+                           (min(255, int(b * LED_HIGHLIGHT_GAIN)), min(255, int(g * LED_HIGHLIGHT_GAIN)), min(255, int(r * LED_HIGHLIGHT_GAIN))), -1)
 
     return canvas
 
@@ -363,7 +403,7 @@ def main():
     detector = create_face_detector()
     # DirectShow sous Windows, backend natif sous Linux (Raspberry Pi).
     backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
-    cap = cv2.VideoCapture(0, backend)
+    cap = cv2.VideoCapture(CAMERA_INDEX, backend)
 
     if not cap.isOpened():
         print("ERREUR : Impossible d'acceder a la camera.")
@@ -371,14 +411,14 @@ def main():
         detector.close()
         return
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
 
     animator = RobotFaceAnimator()
 
-    window_title = "Visage - Animation Stylisee & Vivante"
+    window_title = WINDOW_TITLE
     cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(window_title, 1160, 520)
+    cv2.resizeWindow(window_title, WINDOW_WIDTH, WINDOW_HEIGHT)
 
     print("\n" + "=" * 65)
     print(" SYSTEME D'ANIMATION FLUIDE OPERATIONNEL :")
@@ -394,7 +434,8 @@ def main():
             cv2.waitKey(10)
             continue
 
-        frame = cv2.flip(frame, 1)  # Effet miroir
+        if CAMERA_MIRROR:
+            frame = cv2.flip(frame, 1)  # Effet miroir
         h, w = frame.shape[:2]
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -420,13 +461,13 @@ def main():
                 top_cam = anim_state["mouth_top"]
                 bot_cam = anim_state["mouth_bot"]
 
-                if anim_state["mouth_h"] < 0.8:
+                if anim_state["mouth_h"] < MOUTH_CLOSED_RENDER_THRESHOLD:
                     mid_cam = (top_cam + bot_cam) / 2.0
-                    bez_cam = compute_quadratic_bezier(c1_cam, mid_cam, c2_cam, num_samples=25)
+                    bez_cam = compute_quadratic_bezier(c1_cam, mid_cam, c2_cam, num_samples=BEZIER_CLOSED_SAMPLES)
                     cv2.polylines(frame, [np.round(bez_cam).astype(np.int32)], False, (0, 255, 255), 2)
                 else:
-                    bez_top_cam = compute_quadratic_bezier(c1_cam, top_cam, c2_cam, num_samples=20)
-                    bez_bot_cam = compute_quadratic_bezier(c2_cam, bot_cam, c1_cam, num_samples=20)
+                    bez_top_cam = compute_quadratic_bezier(c1_cam, top_cam, c2_cam, num_samples=BEZIER_OPEN_SAMPLES)
+                    bez_bot_cam = compute_quadratic_bezier(c2_cam, bot_cam, c1_cam, num_samples=BEZIER_OPEN_SAMPLES)
                     bez_loop_cam = np.vstack([bez_top_cam, bez_bot_cam])
                     cv2.polylines(frame, [np.round(bez_loop_cam).astype(np.int32)], True, (0, 180, 255), 2)
 

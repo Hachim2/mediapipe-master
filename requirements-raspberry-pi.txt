@@ -1,0 +1,5 @@
+# ARM64 wheels available for Python 3.9 through 3.12.
+mediapipe==0.10.18
+numpy==1.26.4
+# Provides cv2 and satisfies MediaPipe; do not also install opencv-python.
+opencv-contrib-python==4.10.0.84
