@@ -13,6 +13,9 @@ Architecture :
 
 import sys
 import os
+from pathlib import Path
+import webbrowser
+from portrait_cartoon import save_portrait
 from config import (
     MATRIX_W,
     MATRIX_H,
@@ -426,6 +429,7 @@ def main():
     print(" - Clignement : transition douce vers le trait ferme")
     print(" - Bouche : morphing souple en direct (parole et sourire)")
     print(" Touche 'q' pour quitter.")
+    print(" Touche 'p' : photo du visage, cartoon et page A4 imprimable.")
     print("=" * 65 + "\n")
 
     while cap.isOpened():
@@ -437,6 +441,7 @@ def main():
         if CAMERA_MIRROR:
             frame = cv2.flip(frame, 1)  # Effet miroir
         h, w = frame.shape[:2]
+        clean_frame = frame.copy()
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -498,8 +503,21 @@ def main():
 
         cv2.imshow(window_title, combined)
 
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
             break
+        if key == ord("p"):
+            try:
+                page = save_portrait(
+                    clean_frame,
+                    result.face_landmarks[0] if result.face_landmarks else None,
+                    Path(SCRIPT_DIR) / "portraits",
+                )
+                print(f"Portrait enregistre : {page}")
+                if not webbrowser.open(page.as_uri()):
+                    print("Ouvrez ce fichier dans un navigateur pour imprimer.")
+            except (ValueError, OSError, cv2.error, webbrowser.Error) as exc:
+                print(f"Portrait : {exc}")
 
     cap.release()
     cv2.destroyAllWindows()

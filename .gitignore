@@ -6,3 +6,6 @@ venv/
 
 # Modèle téléchargé automatiquement par l'application
 /face_landmarker.task
+
+# Photos et portraits generes localement
+/portraits/

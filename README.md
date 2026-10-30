@@ -29,6 +29,32 @@ sont liés au modèle MediaPipe et doivent normalement rester inchangés.
 Les constantes `DEADZONE_*` de `config.py` règlent la stabilité des mouvements.
 Une valeur de zéro désactive le filtre correspondant.
 
+## Portrait cartoon imprimable
+
+Dans la fenêtre caméra, appuyer sur `p` lorsqu'un visage est détecté.
+Le programme photographie le premier visage détecté, le recadre avec une marge,
+puis applique un effet cartoon avec une déformation centrale amusante.
+La capture conserve l'effet miroir configuré, sans les points ni les diagnostics
+affichés à l'écran. Sans visage détecté, aucune photo n'est enregistrée.
+
+Chaque capture crée un dossier daté dans `portraits/`, à côté du script :
+
+- `photo.png` : photo recadrée ;
+- `cartoon.png` : résultat cartoon ;
+- `imprimer.html` : page A4 autonome contenant le dessin.
+
+La page s'ouvre dans le navigateur par défaut. Cliquer sur **Imprimer /
+Enregistrer en PDF**, puis choisir une imprimante ou l'export PDF et le format A4.
+Si le navigateur ne s'ouvre pas sur le Pi, ouvrir le fichier `imprimer.html`
+indiqué dans le terminal, éventuellement après l'avoir copié sur un autre ordinateur.
+La définition dépend de la taille du visage dans la caméra : s'approcher donne
+un portrait plus net. La génération peut provoquer une courte pause sur le Pi.
+
+Cette première version utilise uniquement OpenCV : aucune IA générative,
+aucune clé API, aucun coût par image et aucun envoi de photo sur Internet.
+Les photos restent dans `portraits/` jusqu'à leur suppression manuelle ; ce dossier
+est exclu de Git.
+
 ## Vérification sans caméra
 
 ```bash
@@ -84,7 +110,7 @@ exit
 Dans PowerShell, depuis le dossier du projet :
 
 ```powershell
-scp .\face_landmarks_camera.py .\config.py .\requirements-raspberry-pi.txt .\face_landmarker.task .\README.md hachi@robotpi.local:~/robot-face/
+scp .\face_landmarks_camera.py .\portrait_cartoon.py .\config.py .\requirements-raspberry-pi.txt .\face_landmarker.task .\README.md hachi@robotpi.local:~/robot-face/
 scp -r .\tests hachi@robotpi.local:~/robot-face/
 ssh hachi@robotpi.local
 ```
