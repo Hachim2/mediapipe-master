@@ -19,8 +19,8 @@ CUPS_TIMEOUT_SECONDS = 20
 # Interface tactile : python kiosk.py (animation historique : face_landmarks_camera.py).
 KIOSK_FULLSCREEN = False
 KIOSK_WINDOW_SIZE = "1100x760"
-KIOSK_STARTUP_LOGO = str(Path(__file__).resolve().parent / "assets" / "startup-logo.png")
-KIOSK_HOME_LOGO = str(Path(__file__).resolve().parent / "assets" / "home-logo.png")
+KIOSK_STARTUP_LOGO = str(Path(__file__).resolve().parent / "assets" / "ece_logo.png")
+KIOSK_HOME_LOGO = str(Path(__file__).resolve().parent / "assets" / "fablab.png")
 KIOSK_SPLASH_SECONDS = 4.0  # Entre 3 et 5 secondes.
 KIOSK_TRANSITION_SECONDS = 0.4
 KIOSK_STABLE_SECONDS = 1.5
@@ -40,9 +40,9 @@ KIOSK_DEPARTURE_SECONDS = 1.0
 KIOSK_MIRROR = True
 KIOSK_FONT = "DejaVu Sans"
 KIOSK_COLORS = {
-    "background": "#101C2D", "panel": "#1A2C43", "text": "#F5F7FA",
-    "muted": "#B5C7DB", "accent": "#8DE6D0", "accent_text": "#102A27",
-    "secondary": "#314B68", "warning": "#FFD38C",
+    "background": "#FFFFFF", "panel": "#F1F5F5", "text": "#152B32",
+    "muted": "#52676E", "accent": "#007B80", "accent_text": "#FFFFFF",
+    "secondary": "#E3EEEE", "warning": "#97601A",
 }
 
 # ==============================================================================

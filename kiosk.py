@@ -87,7 +87,7 @@ class Kiosk:
         self.stop = self.context.Event()
         self.camera = self.context.Process(target=camera_worker, args=(self.queue, self.stop, demo), daemon=True)
         self.camera.start()
-        root.title("Atelier Portrait — borne cartoon")
+        root.title("Atelier Portrait — démonstration sans matériel" if demo else "Atelier Portrait — borne cartoon")
         root.geometry(cfg.KIOSK_WINDOW_SIZE)
         root.minsize(480, 480)
         root.configure(bg=self.colors["background"])
@@ -263,24 +263,28 @@ class Kiosk:
         self.font_size = max(20, min(34, min(w, h) * .04))
         state = self.flow.state
         pad = min(w, h) * .055
-        self.text(pad, pad, "ATELIER / PORTRAIT", self.font_size*.48, anchor="w", bold=True, width=w*.48)
-        self.text(w-pad, pad, "DÉMONSTRATION · SANS MATÉRIEL" if self.demo else "VOTRE SOUVENIR EN COULEUR",
-                  self.font_size*.38, self.colors["accent"], anchor="e", width=w*.44)
         if state == State.STARTUP:
-            self.logo(0, (w*.25,h*.19,w*.75,h*.56))
-            self.text(w*.5,h*.64,"Un sourire, un souvenir.",self.font_size*1.2,bold=True)
+            logo_box = (w*.2,h*.3,w*.8,h*.7)
+            self.logo(0, logo_box)
             elapsed = now-self.flow.started
-            loading = "Préparation de votre atelier…" if elapsed < self.flow.s.splash else (
-                "Caméra indisponible · nous essayons de la reconnecter" if self.camera_problem else
-                "Chargement de la caméra et du modèle…")
-            self.text(w*.5,h*.75,loading,self.font_size*.6,self.colors["muted"])
             if self.camera_problem and elapsed >= self.flow.s.splash:
                 self.button((w*.3,h*.87,w*.7,h*.97),"Réessayer","restart",True)
-            # Apparition progressive, sans attente bloquante.
-            progress = min(1, elapsed/self.flow.s.splash)
-            self.rounded((w*.35,h*.84,w*.65,h*.847),self.colors["secondary"],4)
-            if progress > 0:
-                self.rounded((w*.35,h*.84,w*(.35+.3*progress),h*.847),self.colors["accent"],4)
+            # La barre suit le bas du logo reel, quelle que soit sa proportion.
+            logo = self.logos[0]
+            logo_height = (min(h*.4,w*.6*logo.height/logo.width) if logo is not None
+                           else min(w*.6,h*.4)*.6)
+            bar_width = min(w*.3,400)
+            left, top = (w-bar_width)/2, h*.5+logo_height/2+h*.04
+            height = max(4,h*.006)
+            self.rounded((left,top,left+bar_width,top+height),self.colors["secondary"],4)
+            if elapsed < self.flow.s.splash:
+                progress = max(0,elapsed/self.flow.s.splash)
+                if progress > 0:
+                    self.rounded((left,top,left+bar_width*progress,top+height),self.colors["accent"],4)
+            else:
+                # Attente du materiel : animation continue, sans texte de chargement.
+                offset = (math.sin(now*2)+1)*.375*bar_width
+                self.rounded((left+offset,top,left+offset+bar_width*.25,top+height),self.colors["accent"],4)
         elif state in {State.HOME, State.STABILIZING}:
             self.logo(1,(w*.32,h*.16,w*.68,h*.45))
             self.text(w*.5,h*.52,"Placez-vous devant la caméra",self.font_size,bold=True)
@@ -307,6 +311,8 @@ class Kiosk:
             self.text(w*.5,h*.8,"●" * (1+int(now*2)%3),self.font_size,self.colors["accent"])
         else:
             self.render_result(w,h,pad,now)
+        if self.demo and state != State.STARTUP:
+            self.text(w*.5,h*.985,"DÉMONSTRATION · SANS MATÉRIEL",10,self.colors["muted"])
         # Apparition progressive et petit glissement, sans attente ni texture de tramage.
         duration = max(.01, cfg.KIOSK_TRANSITION_SECONDS)
         if state == State.HOME and now-self.flow.entered < duration:
