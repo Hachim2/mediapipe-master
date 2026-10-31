@@ -9,3 +9,4 @@ venv/
 
 # Photos et portraits generes localement
 /portraits/
+/kiosk.log

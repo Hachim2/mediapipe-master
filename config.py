@@ -16,6 +16,35 @@ PRINTER_OPTIONS = {}
 PRINT_SAFETY_MARGIN_MM = 4.0
 CUPS_TIMEOUT_SECONDS = 20
 
+# Interface tactile : python kiosk.py (animation historique : face_landmarks_camera.py).
+KIOSK_FULLSCREEN = False
+KIOSK_WINDOW_SIZE = "1100x760"
+KIOSK_STARTUP_LOGO = str(Path(__file__).resolve().parent / "assets" / "startup-logo.png")
+KIOSK_HOME_LOGO = str(Path(__file__).resolve().parent / "assets" / "home-logo.png")
+KIOSK_SPLASH_SECONDS = 4.0  # Entre 3 et 5 secondes.
+KIOSK_TRANSITION_SECONDS = 0.4
+KIOSK_STABLE_SECONDS = 1.5
+KIOSK_SMOOTHING_SECONDS = 0.18
+KIOSK_CENTER_THRESHOLD = 0.025  # Fraction de largeur/hauteur image.
+KIOSK_SIZE_THRESHOLD = 0.09  # Variation relative de largeur/hauteur du visage.
+KIOSK_MIN_FACE_WIDTH = 0.18
+KIOSK_MIN_FACE_HEIGHT = 0.22
+KIOSK_FRAME_MARGIN = 0.02
+KIOSK_FRAME_TIMEOUT_SECONDS = 1.2
+KIOSK_PREVIEW_SECONDS = 1.5
+KIOSK_COUNTDOWN_SECONDS = 3.0
+KIOSK_FLASH_SECONDS = 0.18
+KIOSK_CHOICE_TIMEOUT_SECONDS = 60.0
+KIOSK_SUCCESS_TIMEOUT_SECONDS = 15.0
+KIOSK_DEPARTURE_SECONDS = 1.0
+KIOSK_MIRROR = True
+KIOSK_FONT = "DejaVu Sans"
+KIOSK_COLORS = {
+    "background": "#101C2D", "panel": "#1A2C43", "text": "#F5F7FA",
+    "muted": "#B5C7DB", "accent": "#8DE6D0", "accent_text": "#102A27",
+    "secondary": "#314B68", "warning": "#FFD38C",
+}
+
 # ==============================================================================
 # CONFIGURATION MATRICE
 # ==============================================================================

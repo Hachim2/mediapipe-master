@@ -5,6 +5,146 @@ ainsi que le visage animé dans une fenêtre OpenCV. Le rendu à points lumineux
 reste un effet visuel à l'écran. Aucune donnée n'est envoyée à un microcontrôleur
 ou à une matrice LED physique.
 
+## Borne tactile
+
+La nouvelle interface se lance avec **`kiosk.py`**. L'animation faciale historique
+reste accessible avec `face_landmarks_camera.py`, sans changement de commande.
+Lancer un seul de ces programmes à la fois : ils utilisent la même caméra.
+
+Tkinter fournit ici l'interface locale avec une mise en page redessinée selon
+les dimensions de l'écran : boutons larges, palette contrastée, logos PNG
+transparents et portrait central. Il réutilise l'environnement graphique existant
+et n'exige ni navigateur, ni serveur web, ni accélération graphique particulière.
+Les mises à jour Tk et les objets `PhotoImage` restent dans le fil graphique.
+La caméra et MediaPipe tournent dans un processus séparé ; les logos, le cartoon
+et l'envoi CUPS sont chargés ou exécutés en arrière-plan.
+
+### Installation et lancement
+
+Sur Raspberry Pi OS avec bureau, utiliser l'environnement Python décrit plus bas
+(Bookworm 64 bits / Python 3.11 pour les versions MediaPipe épinglées), puis :
+
+```bash
+sudo apt install python3-tk
+source .venv/bin/activate
+python -m pip install -r requirements-kiosk.txt
+python kiosk.py --windowed
+```
+
+Pour la borne : `python kiosk.py --fullscreen`. `F11` bascule le plein écran ;
+`Échap` revient en fenêtre pour la maintenance, puis fermer la fenêtre normalement.
+Le tactile doit produire les événements de clic du système graphique. La taille
+et l'orientation peuvent changer pendant l'exécution ; minimum de fenêtre 480 ×
+480, avec agencement paysage (portrait à gauche, boutons à droite) ou vertical.
+Privilégier un écran d'au moins 600 × 800 / 800 × 600 pour la lisibilité publique.
+
+Sous Windows, avec le même venv, les commandes `python kiosk.py --windowed` et
+`python kiosk.py --demo` fonctionnent aussi. Tk/Tcl doit être inclus dans
+l'installation Python. Pour démarrer sans console en exploitation, utiliser
+un lanceur du bureau (ou `pythonw.exe kiosk.py` sous Windows) ; ne pas masquer
+les erreurs pendant la configuration initiale.
+
+### Parcours visiteur
+
+1. Logo de lancement pendant **4 secondes** par défaut, réglable de 3 à 5 s.
+   Si le matériel n'est pas prêt, un message de chargement reste visible.
+2. Accueil avec le deuxième logo, sans flux vidéo : « Placez-vous devant la caméra ».
+   Plusieurs visages, un visage trop petit ou mal cadré empêchent la progression.
+3. Après stabilisation, grand retour caméra, délai pour se voir, puis **3, 2, 1**.
+   Un déplacement, une disparition ou une image ancienne annule la prise de vue.
+4. Capture propre, flash bref, traitement cartoon existant et aperçu du tirage.
+5. **Impression**, **Dessin** ou **Reprendre la photo**. Dessin affiche uniquement
+   « Le dessin robotisé sera bientôt disponible » ; aucune commande de bras n'est envoyée.
+6. Après un envoi accepté, **Terminer** ou retour automatique à l'accueil.
+   L'interface efface l'ancien aperçu. Le visiteur doit quitter le champ pendant
+   une seconde, ou choisir **Nouveau portrait**, avant un nouveau déclenchement.
+
+L'impression utilise la file et les options `PRINTER_QUEUE` / `PRINTER_OPTIONS`
+décrites dans la section SELPHY. Seul le tirage de la session courante est envoyé.
+Le bouton n'est plus actif pendant l'envoi ; le verrou persistant du module CUPS
+reste applicable. « Travail accepté par CUPS » ne confirme pas la sortie physique.
+En cas d'erreur avant envoi, le portrait reste affiché et **Réessayer** est proposé.
+Si un envoi a déjà été tenté avec résultat incertain, une vérification par le
+responsable est nécessaire avant réimpression : revenir au portrait reste possible.
+Aucun détail technique n'est présenté au visiteur ; les diagnostics vont dans
+`kiosk.log` (à côté des scripts, exclu de Git).
+
+Sans file configurée, l'aperçu et les fichiers restent disponibles ; une demande
+d'impression aboutit à un message d'indisponibilité, sans impression. Les fichiers
+des sessions restent sous `portraits/visiteurs/`, les démos sous `portraits/demo/`.
+Le retour à l'accueil efface l'aperçu de l'écran, **pas les fichiers enregistrés**.
+Prévoir leur suppression périodique selon l'usage de la borne.
+
+### Logos et réglages
+
+Tous les réglages se trouvent dans `config.py`, puis nécessitent un redémarrage :
+
+| Réglage | Usage |
+| --- | --- |
+| `KIOSK_STARTUP_LOGO`, `KIOSK_HOME_LOGO` | Deux fichiers PNG indépendants, transparence et proportions conservées ; visuels distincts de remplacement si absents/illisibles. Aucun sélecteur au démarrage. |
+| `KIOSK_SPLASH_SECONDS`, `KIOSK_TRANSITION_SECONDS` | Durée du lancement et apparition douce de l'accueil. |
+| `KIOSK_FULLSCREEN`, `KIOSK_WINDOW_SIZE` | Mode et taille de développement par défaut ; les arguments CLI ont priorité. |
+| `KIOSK_COLORS`, `KIOSK_FONT` | Palette et police ; utiliser une police installée sur le Pi. |
+| `KIOSK_STABLE_SECONDS` | Durée de stabilité avant présentation de la caméra. |
+| `KIOSK_SMOOTHING_SECONDS` | Constante de temps du lissage exponentiel ; zéro le désactive. |
+| `KIOSK_CENTER_THRESHOLD` | Déplacement maximum du centre, en fraction de largeur/hauteur de l'image. |
+| `KIOSK_SIZE_THRESHOLD` | Variation relative maximum de largeur/hauteur du visage. |
+| `KIOSK_MIN_FACE_WIDTH`, `KIOSK_MIN_FACE_HEIGHT`, `KIOSK_FRAME_MARGIN` | Visibilité minimale et distance minimale aux bords, coordonnées normalisées 0–1. |
+| `KIOSK_FRAME_TIMEOUT_SECONDS` | Âge maximum d'une capture exploitable ; aucune photo sur une ancienne détection. |
+| `KIOSK_PREVIEW_SECONDS`, `KIOSK_COUNTDOWN_SECONDS`, `KIOSK_FLASH_SECONDS` | Délai pour se voir, compte à rebours (3 s par défaut) et flash. |
+| `KIOSK_CHOICE_TIMEOUT_SECONDS` | Retour à l'accueil après inactivité dans le choix, le message Dessin ou une erreur d'impression. Jamais pendant un envoi. |
+| `KIOSK_SUCCESS_TIMEOUT_SECONDS`, `KIOSK_DEPARTURE_SECONDS` | Retour après prise en charge et temps d'absence pour réarmer l'accueil. |
+| `KIOSK_MIRROR` | Effet miroir indépendant pour la borne, appliqué aussi à la capture. |
+
+Par défaut, les chemins des logos pointent vers `assets/startup-logo.png` et
+`assets/home-logo.png`. Créer ce dossier et y déposer les PNG ou modifier les
+chemins. Pour la stabilité, augmenter les seuils tolère davantage de mouvements ;
+augmenter la durée oblige à garder la pose plus longtemps. Le calcul suit
+l'enveloppe du visage, pas les paupières ou les lèvres : clignements et petites
+expressions restent tolérés. Un ancrage empêche qu'une dérive lente paraisse stable.
+Les temps utilisent une horloge monotone, indépendamment du nombre d'images.
+
+Le module `kiosk_flow.py` contient les états et le point d'intégration futur
+`request_robot_drawing()`. Ce dernier renvoie seulement le message d'indisponibilité.
+La borne détecte jusqu'à trois visages, indépendamment du réglage mono-visage
+de l'animation historique.
+
+### Démonstration et vérifications
+
+```bash
+python kiosk.py --demo --windowed
+python -m unittest discover -s tests -v
+python tests/kiosk_smoke.py
+```
+
+Le mode **`--demo`** est explicitement marqué à l'écran. Il utilise une illustration
+et des détections synthétiques ; il n'ouvre ni caméra ni modèle MediaPipe et ne
+peut jamais appeler CUPS. L'action Impression est signalée comme une simulation,
+pas comme une impression physique réussie. Les exports cartoon sont réellement
+créés pour vérifier le parcours. Le contrôle graphique `kiosk_smoke.py` utilise
+uniquement ce mode, teste le parcours et le double clic, et enregistre des captures
+de sa propre fenêtre dans `portraits/demo/interface/` ; il requiert un bureau.
+
+Les tests couvrent notamment les durées de stabilité, les petites expressions,
+la dérive lente, les pertes d'image, les visages multiples, l'annulation du compte
+à rebours, une capture unique, l'interdiction de réimprimer pendant l'envoi,
+le réarmement après départ et l'interdiction matérielle du mode démo. Les tests
+CUPS existants restent simulés.
+
+Une caméra absente/débranchée produit un écran d'attente ou d'erreur et le processus
+d'acquisition tente de rouvrir le périphérique. **Réessayer** relance le parcours
+et, si nécessaire, le processus arrêté. Un appel caméra bloqué ne bloque pas
+l'interface ; fermer puis relancer la borne si le backend ne se rétablit pas.
+La fermeture demande l'arrêt et la libération de la caméra/du détecteur ; un
+processus bloqué est terminé après un délai borné. Un envoi CUPS déjà engagé
+se termine en arrière-plan, sans nouvel essai automatique.
+
+Reste à valider sur le matériel : fluidité MediaPipe sur Pi 5 avec plusieurs
+visages, seuils de stabilité selon distance/éclairage, comportement du tactile
+et de la police, plein écran du bureau choisi, déconnexion/reconnexion USB,
+pilote SELPHY, cadrage et rendu du vrai papier RP-108. Ne pas lancer les tests
+matériels avec `--demo`.
+
 ## Exécution
 
 Utiliser un environnement Python disposant de `mediapipe`, `opencv-python`
@@ -228,6 +368,7 @@ Dans PowerShell, depuis le dossier du projet :
 
 ```powershell
 scp .\face_landmarks_camera.py .\portrait_cartoon.py .\portrait_preview.py .\portrait_printing.py .\config.py .\requirements-raspberry-pi.txt .\face_landmarker.task .\README.md hachi@robotpi.local:~/robot-face/
+scp .\kiosk.py .\kiosk_camera.py .\kiosk_flow.py .\requirements-kiosk.txt hachi@robotpi.local:~/robot-face/
 scp -r .\tests hachi@robotpi.local:~/robot-face/
 ssh hachi@robotpi.local
 ```

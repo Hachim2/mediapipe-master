@@ -125,7 +125,7 @@ from mediapipe.tasks.python import vision
 # ==============================================================================
 # CHARGEMENT DU DETECTEUR
 # ==============================================================================
-def create_face_detector():
+def create_face_detector(num_faces=None):
     if not os.path.exists(MODEL_PATH):
         print("Telechargement du modele FaceLandmarker...")
         urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
@@ -136,7 +136,7 @@ def create_face_detector():
         base_options=base_options,
         output_face_blendshapes=False,
         output_facial_transformation_matrixes=False,
-        num_faces=NUM_FACES,
+        num_faces=NUM_FACES if num_faces is None else num_faces,
         min_face_detection_confidence=DETECTION_CONFIDENCE,
         min_face_presence_confidence=PRESENCE_CONFIDENCE,
         min_tracking_confidence=TRACKING_CONFIDENCE,

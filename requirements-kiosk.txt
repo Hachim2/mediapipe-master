@@ -1,0 +1,2 @@
+# Installer apres requirements-raspberry-pi.txt ; tkinter est fourni par python3-tk.
+Pillow>=10.0,<14
