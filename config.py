@@ -8,6 +8,14 @@ sont liés au modèle MediaPipe et ne sont normalement pas à modifier.
 
 from pathlib import Path
 
+# SELPHY : vide = aperçu/export seulement. Utiliser le nom exact de la file CUPS.
+PRINTER_QUEUE = ""
+# Copier uniquement les clés/valeurs exposées par lpoptions -p NOM -l.
+# Configurer le format carte postale RP-108 et le mode couleur avant utilisation.
+PRINTER_OPTIONS = {}
+PRINT_SAFETY_MARGIN_MM = 4.0
+CUPS_TIMEOUT_SECONDS = 20
+
 # ==============================================================================
 # CONFIGURATION MATRICE
 # ==============================================================================

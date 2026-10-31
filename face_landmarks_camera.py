@@ -14,8 +14,10 @@ Architecture :
 import sys
 import os
 from pathlib import Path
-import webbrowser
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from portrait_cartoon import save_portrait
+from config import PRINT_SAFETY_MARGIN_MM
 from config import (
     MATRIX_W,
     MATRIX_H,
@@ -429,10 +431,29 @@ def main():
     print(" - Clignement : transition douce vers le trait ferme")
     print(" - Bouche : morphing souple en direct (parole et sourire)")
     print(" Touche 'q' pour quitter.")
-    print(" Touche 'p' : photo du visage, cartoon et page A4 imprimable.")
+    print(" Touche 'p' : capturer et ouvrir l'apercu photo (aucune impression automatique).")
     print("=" * 65 + "\n")
 
+    portrait_pool = ThreadPoolExecutor(max_workers=1)
+    portrait_future = None
+    preview_process = None
+
     while cap.isOpened():
+        if preview_process is not None and preview_process.poll() is not None:
+            if preview_process.returncode:
+                print("L'apercu a echoue : verifier tkinter et la session graphique. Les exports restent dans portraits/.")
+            preview_process = None
+        if portrait_future is not None and portrait_future.done():
+            try:
+                page = portrait_future.result()
+                print(f"Portrait exporte : {page}")
+                preview_process = subprocess.Popen([
+                    sys.executable, str(Path(SCRIPT_DIR) / "portrait_preview.py"),
+                    str(page.parent / "tirage.png"),
+                ])
+            except (ValueError, OSError, cv2.error) as exc:
+                print(f"Portrait : {exc}")
+            portrait_future = None
         success, frame = cap.read()
         if not success or frame is None:
             cv2.waitKey(10)
@@ -507,18 +528,17 @@ def main():
         if key == ord("q"):
             break
         if key == ord("p"):
-            try:
-                page = save_portrait(
-                    clean_frame,
-                    result.face_landmarks[0] if result.face_landmarks else None,
-                    Path(SCRIPT_DIR) / "portraits",
+            if portrait_future is not None or (preview_process is not None and preview_process.poll() is None):
+                print("Fermez l'apercu courant avant une nouvelle capture.")
+            elif not result.face_landmarks:
+                print("Aucun visage detecte : capture impossible.")
+            else:
+                portrait_future = portrait_pool.submit(
+                    save_portrait, clean_frame, list(result.face_landmarks[0]),
+                    Path(SCRIPT_DIR) / "portraits", PRINT_SAFETY_MARGIN_MM,
                 )
-                print(f"Portrait enregistre : {page}")
-                if not webbrowser.open(page.as_uri()):
-                    print("Ouvrez ce fichier dans un navigateur pour imprimer.")
-            except (ValueError, OSError, cv2.error, webbrowser.Error) as exc:
-                print(f"Portrait : {exc}")
 
+    portrait_pool.shutdown(wait=False)
     cap.release()
     cv2.destroyAllWindows()
     detector.close()

@@ -1,4 +1,4 @@
-"""Capture locale, caricature OpenCV et document A4 autonome."""
+"""Capture locale, caricature OpenCV et tirage photo 100 × 148 mm."""
 
 import base64
 from datetime import datetime
@@ -58,40 +58,61 @@ def encode_png(image):
     return encoded.tobytes()
 
 
-def save_portrait(frame, landmarks, output_dir):
-    """Sauvegarde photo, cartoon et HTML imprimable dans un dossier unique."""
+def prepare_print_image(cartoon, safety_margin_mm=4.0):
+    """Contain, jamais crop : proportions conservees sur fond blanc a 300 ppp."""
+    if not np.isfinite(safety_margin_mm) or not 0 <= safety_margin_mm < 50:
+        raise ValueError("La marge doit etre comprise entre 0 et 50 mm exclus.")
+    width, height = 1181, 1748
+    margin = round(safety_margin_mm * 300 / 25.4)
+    h, w = cartoon.shape[:2]
+    if min(h, w) == 0:
+        raise ValueError("Image vide.")
+    scale = min((width - 2 * margin) / w, (height - 2 * margin) / h)
+    size = (max(1, round(w * scale)), max(1, round(h * scale)))
+    resized = cv2.resize(cartoon, size, interpolation=cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA)
+    canvas = np.full((height, width, 3), 255, dtype=np.uint8)
+    x, y = (width - size[0]) // 2, (height - size[1]) // 2
+    canvas[y:y + size[1], x:x + size[0]] = resized
+    return canvas
+
+
+def print_png(image):
+    """Ajoute la densite PNG pHYs (300 ppp) sans dependance supplementaire."""
+    import struct
+    import zlib
+    png = encode_png(image)
+    payload = b"pHYs" + struct.pack(">IIB", 11811, 11811, 1)
+    chunk = struct.pack(">I", 9) + payload + struct.pack(">I", zlib.crc32(payload))
+    return png[:33] + chunk + png[33:]
+
+
+def save_portrait(frame, landmarks, output_dir, safety_margin_mm=4.0):
+    """Conserve les sources et exporte le tirage et une page photo autonome."""
     photo = crop_face(frame, landmarks)
     cartoon = cartoonize(photo)
-    photo_bytes, cartoon_bytes = encode_png(photo), encode_png(cartoon)
+    printable = prepare_print_image(cartoon, safety_margin_mm)
     root = Path(output_dir).resolve()
     root.mkdir(parents=True, exist_ok=True)
     folder = root / datetime.now().strftime("portrait-%Y%m%d-%H%M%S-%f")
     folder.mkdir()
-    (folder / "photo.png").write_bytes(photo_bytes)
-    (folder / "cartoon.png").write_bytes(cartoon_bytes)
-    data = base64.b64encode(cartoon_bytes).decode("ascii")
+    (folder / "photo.png").write_bytes(encode_png(photo))
+    (folder / "cartoon.png").write_bytes(encode_png(cartoon))
+    printable_bytes = print_png(printable)
+    (folder / "tirage.png").write_bytes(printable_bytes)
+    data = base64.b64encode(printable_bytes).decode("ascii")
     page = folder / "imprimer.html"
     page.write_text("""<!doctype html>
-<html lang="fr"><meta charset="utf-8">
-<title>Mon portrait cartoon</title>
+<html lang="fr"><meta charset="utf-8"><title>Aperçu du portrait</title>
 <style>
-@page { size: A4 portrait; margin: 15mm; }
-* { box-sizing: border-box; }
-body { margin: 0; background: #eee; font-family: sans-serif; text-align: center; }
-main { background: white; max-width: 210mm; margin: 20px auto; padding: 15mm; }
-h1 { margin: 0 0 8mm; font-size: 24pt; }
-img { display: block; max-width: 100%; width: auto; height: auto;
-      max-height: 225mm; margin: auto; object-fit: contain; }
-button { margin: 16px; padding: 12px 24px; font-size: 16px; cursor: pointer; }
-@media print {
-  body { background: white; }
-  main { margin: 0; padding: 0; max-width: none; }
-  .controls { display: none; }
-}
+@page { size: 100mm 148mm; margin: 0; }
+body { margin: 0; background: #ddd; text-align: center; font-family: sans-serif; }
+img { display: block; width: 100mm; height: 148mm; margin: auto; }
+button { padding: 12px; margin: 12px; }
+@media print { .controls { display: none; } body { background: white; } }
 </style>
-<div class="controls"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button>
-<p>Choisissez le format A4 dans la boîte d’impression.</p></div>
-<main><h1>Mon portrait cartoon</h1>
-<img alt="Portrait avec effet cartoon et déformation amusante" src="data:image/png;base64,"""
-                    + data + '\"></main></html>', encoding="utf-8")
+<div class="controls"><button onclick="window.print()">Imprimer / Exporter PDF</button>
+<p>Export navigateur : sélectionner 100 × 148 mm, sans en-têtes ni pieds de page.
+Pour la borne, utiliser le bouton Imprimer de la fenêtre d’aperçu CUPS.</p></div>
+<img alt="Portrait cartoon" src="data:image/png;base64,"""
+                    + data + '\"></html>', encoding="utf-8")
     return page
